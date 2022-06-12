@@ -28,6 +28,28 @@ describe('PropertyTransformer', function () {
                 currentTemperature: 0
             });
         });
+
+        it('should not subtract 40 from vendor value in case value after subtraction less than 0', function () {
+            const SUT = new PropertyTransformer();
+            const result = SUT.fromVendor({
+                TemSen: 30
+            });
+
+            assert.deepEqual(result, {
+                currentTemperature: 30
+            });
+        });
+
+        it('should ignore vendor value if it greater than 100', function () {
+            const SUT = new PropertyTransformer();
+            const result = SUT.fromVendor({
+                TemSen: 100
+            });
+
+            assert.deepEqual(result, {
+                currentTemperature: 0
+            });
+        });
     });
     describe('#toVendor()', function () {
         it('should transform from human friendly to vendor', function () {

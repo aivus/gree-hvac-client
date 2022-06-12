@@ -119,6 +119,7 @@ Control GREE HVAC device by getting and setting its properties
     * [.setProperties(properties)](#Client+setProperties)
     * [.setProperty(property, value)](#Client+setProperty)
     * [.getDeviceId()](#Client+getDeviceId) ⇒ <code>string</code> \| <code>null</code>
+    * [.setDebug(enable)](#Client+setDebug)
 
 <a name="new_Client_new"></a>
 
@@ -217,6 +218,17 @@ client.setProperty('temperature', 25);
 Returns devices MAC-address
 
 **Kind**: instance method of [<code>Client</code>](#Client)  
+<a name="Client+setDebug"></a>
+
+### client.setDebug(enable)
+Set debug level
+
+**Kind**: instance method of [<code>Client</code>](#Client)  
+
+| Param | Type |
+| --- | --- |
+| enable | <code>Boolean</code> | 
+
 <a name="CLIENT_OPTIONS"></a>
 
 ## CLIENT\_OPTIONS

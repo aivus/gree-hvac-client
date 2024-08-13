@@ -4,7 +4,6 @@
  * Device vendor properties value constants
  *
  * @readonly
- * @private
  * @property {string} power.on
  * @property {string} power.off
  * @property {string} mode.auto
@@ -59,22 +58,25 @@
  * @property {string} turbo.on
  * @property {string} powerSave.off
  * @property {string} powerSave.on
+ * @property {string} safetyHeating.off
+ * @property {string} safetyHeating.on
+ * @private
  */
 const PROPERTY_VALUE = {
     power: {
         off: 0,
-        on: 1
+        on: 1,
     },
     mode: {
         auto: 0,
         cool: 1,
         dry: 2,
         fan_only: 3,
-        heat: 4
+        heat: 4,
     },
     temperatureUnit: {
         celsius: 0,
-        fahrenheit: 1
+        fahrenheit: 1,
     },
     temperature: {},
     currentTemperature: {},
@@ -84,29 +86,29 @@ const PROPERTY_VALUE = {
         mediumLow: 2,
         medium: 3,
         mediumHigh: 4,
-        high: 5
+        high: 5,
     },
     air: {
         off: 0,
         inside: 1,
         outside: 2,
-        mode3: 3
+        mode3: 3,
     },
     blow: {
         off: 0,
-        on: 1
+        on: 1,
     },
     health: {
         off: 0,
-        on: 1
+        on: 1,
     },
     sleep: {
         off: 0,
-        on: 1
+        on: 1,
     },
     lights: {
         off: 0,
-        on: 1
+        on: 1,
     },
     swingHor: {
         default: 0,
@@ -116,7 +118,7 @@ const PROPERTY_VALUE = {
         fixedMid: 4,
         fixedMidRight: 5,
         fixedRight: 6,
-        fullAlt: 7
+        fullAlt: 7,
     },
     swingVert: {
         default: 0,
@@ -130,24 +132,28 @@ const PROPERTY_VALUE = {
         swingMidBottom: 8,
         swingMid: 9,
         swingMidTop: 10,
-        swingTop: 11
+        swingTop: 11,
     },
     quiet: {
         off: 0,
         mode1: 1,
         mode2: 2,
-        mode3: 3
+        mode3: 3,
     },
     turbo: {
         off: 0,
-        on: 1
+        on: 1,
     },
     powerSave: {
         off: 0,
-        on: 1
-    }
+        on: 1,
+    },
+    safetyHeating: {
+        off: 0,
+        on: 1,
+    },
 };
 
 module.exports = {
-    PROPERTY_VALUE
+    PROPERTY_VALUE,
 };

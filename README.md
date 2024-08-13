@@ -4,7 +4,7 @@ A client for communicating with Gree air conditioners.
 
 ## Requirements
 
-- NodeJS (>=8.11.0)
+- NodeJS (>=12)
 
 ## Installation
 
@@ -73,7 +73,7 @@ client.on('no_response', () => {
 ## Configuring HVAC WiFi
 
 1. Make sure your HVAC is running in AP mode. You can reset the WiFi config by pressing MODE +WIFI (or MODE + TURBO) on the AC remote for 5s.
-2. Connect with the AP wifi network (the SSID name should be a 8-character alfanumeric, e.g. "u34k5l166").
+2. Connect with the AP wifi network (the SSID name should be a 8-character alphanumeric, e.g. "u34k5l166").
 3. Run the following in your UNIX terminal:
 
 ```shell
@@ -86,15 +86,37 @@ Note: This command may vary depending on your OS (e.g. Linux, macOS, CygWin). If
 ## Classes
 
 <dl>
-<dt><a href="#Client">Client</a></dt>
+<dt><a href="#Client">Client</a> ⇐ <code>EventEmitter</code></dt>
 <dd><p>Control GREE HVAC device by getting and setting its properties</p>
+</dd>
+<dt><a href="#ClientError">ClientError</a> ⇐ <code>Error</code></dt>
+<dd></dd>
+<dt><a href="#ClientSocketSendError">ClientSocketSendError</a> ⇐ <code><a href="#ClientError">ClientError</a></code></dt>
+<dd><p>Connectivity problems while communicating with HVAC</p>
+</dd>
+<dt><a href="#ClientMessageParseError">ClientMessageParseError</a> ⇐ <code><a href="#ClientError">ClientError</a></code></dt>
+<dd><p>The message received from HVAC cannot be parsed</p>
+</dd>
+<dt><a href="#ClientMessageUnpackError">ClientMessageUnpackError</a> ⇐ <code><a href="#ClientError">ClientError</a></code></dt>
+<dd><p>The package from the message received from HVAC cannot be decrypt</p>
+</dd>
+<dt><a href="#ClientUnknownMessageError">ClientUnknownMessageError</a> ⇐ <code><a href="#ClientError">ClientError</a></code></dt>
+<dd><p>A message having an unknown format was received from HVAC</p>
+</dd>
+<dt><a href="#ClientNotConnectedError">ClientNotConnectedError</a> ⇐ <code><a href="#ClientError">ClientError</a></code></dt>
+<dd><p>Request operations on not connected to the HVAC client</p>
+</dd>
+<dt><a href="#ClientConnectTimeoutError">ClientConnectTimeoutError</a> ⇐ <code><a href="#ClientError">ClientError</a></code></dt>
+<dd></dd>
+<dt><a href="#ClientCancelConnectError">ClientCancelConnectError</a> ⇐ <code><a href="#ClientError">ClientError</a></code></dt>
+<dd><p>Connecting was cancelled by calling disconnect</p>
 </dd>
 </dl>
 
 ## Constants
 
 <dl>
-<dt><a href="#CLIENT_OPTIONS">CLIENT_OPTIONS</a></dt>
+<dt><a href="#CLIENT_OPTIONS">CLIENT_OPTIONS</a> : <code>object</code></dt>
 <dd><p>Client options</p>
 </dd>
 <dt><a href="#PROPERTY_VALUE">PROPERTY_VALUE</a></dt>
@@ -105,21 +127,35 @@ Note: This command may vary depending on your OS (e.g. Linux, macOS, CygWin). If
 </dd>
 </dl>
 
+## Typedefs
+
+<dl>
+<dt><a href="#PropertyMap">PropertyMap</a> : <code>Object.&lt;PROPERTY, (PROPERTY_VALUE|number)&gt;</code></dt>
+<dd></dd>
+</dl>
+
 <a name="Client"></a>
 
-## Client
+## Client ⇐ <code>EventEmitter</code>
 Control GREE HVAC device by getting and setting its properties
 
 **Kind**: global class  
+**Extends**: <code>EventEmitter</code>  
+**Emits**: [<code>connect</code>](#Client+event_connect), [<code>update</code>](#Client+event_update), [<code>error</code>](#Client+event_error), [<code>disconnect</code>](#Client+event_disconnect)  
 
-* [Client](#Client)
+* [Client](#Client) ⇐ <code>EventEmitter</code>
     * [new Client(options)](#new_Client_new)
-    * [.connect()](#Client+connect)
-    * [.disconnect()](#Client+disconnect)
-    * [.setProperties(properties)](#Client+setProperties)
-    * [.setProperty(property, value)](#Client+setProperty)
+    * [.connect()](#Client+connect) ⇒ <code>Promise</code>
+    * [.disconnect()](#Client+disconnect) ⇒ <code>Promise</code>
+    * [.setProperties(properties)](#Client+setProperties) ⇒ <code>Promise</code>
+    * [.setProperty(property, value)](#Client+setProperty) ⇒ <code>Promise</code>
     * [.getDeviceId()](#Client+getDeviceId) ⇒ <code>string</code> \| <code>null</code>
     * [.setDebug(enable)](#Client+setDebug)
+    * ["connect"](#Client+event_connect)
+    * ["success" (updated, properties)](#Client+event_success)
+    * ["update" (updated, properties)](#Client+event_update)
+    * ["error" (error)](#Client+event_error)
+    * ["disconnect"](#Client+event_disconnect)
 
 <a name="new_Client_new"></a>
 
@@ -143,26 +179,29 @@ client.on('connect', () => {
 ```
 <a name="Client+connect"></a>
 
-### client.connect()
+### client.connect() ⇒ <code>Promise</code>
 Connect to a HVAC device and start polling status changes by default
 
 **Kind**: instance method of [<code>Client</code>](#Client)  
+**Emits**: [<code>connect</code>](#Client+event_connect), [<code>error</code>](#Client+event_error)  
 <a name="Client+disconnect"></a>
 
-### client.disconnect()
+### client.disconnect() ⇒ <code>Promise</code>
 Disconnect from a HVAC device and stop status polling
 
 **Kind**: instance method of [<code>Client</code>](#Client)  
+**Emits**: [<code>disconnect</code>](#Client+event_disconnect)  
 <a name="Client+setProperties"></a>
 
-### client.setProperties(properties)
+### client.setProperties(properties) ⇒ <code>Promise</code>
 Set a list of device properties at once by one request
 
 **Kind**: instance method of [<code>Client</code>](#Client)  
+**Emits**: [<code>success</code>](#Client+event_success), [<code>error</code>](#Client+event_error)  
 
 | Param | Type |
 | --- | --- |
-| properties | <code>Object.&lt;PROPERTY, PROPERTY\_VALUE&gt;</code> | 
+| properties | [<code>PropertyMap</code>](#PropertyMap) | 
 
 **Example**  
 ```js
@@ -188,10 +227,11 @@ client.setProperties({
 ```
 <a name="Client+setProperty"></a>
 
-### client.setProperty(property, value)
+### client.setProperty(property, value) ⇒ <code>Promise</code>
 Set device property
 
 **Kind**: instance method of [<code>Client</code>](#Client)  
+**Emits**: [<code>success</code>](#Client+event_success), [<code>error</code>](#Client+event_error)  
 
 | Param | Type |
 | --- | --- |
@@ -229,9 +269,154 @@ Set debug level
 | --- | --- |
 | enable | <code>Boolean</code> | 
 
+<a name="Client+event_connect"></a>
+
+### "connect"
+Emitted when successfully connected to the HVAC
+
+**Kind**: event emitted by [<code>Client</code>](#Client)  
+<a name="Client+event_success"></a>
+
+### "success" (updated, properties)
+Emitted when properties successfully updated after calling setProperties or setProperty
+
+**Kind**: event emitted by [<code>Client</code>](#Client)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| updated | [<code>PropertyMap</code>](#PropertyMap) | The properties and their values that were updated |
+| properties | [<code>PropertyMap</code>](#PropertyMap) | All the properties and their values managed by the Client |
+
+<a name="Client+event_update"></a>
+
+### "update" (updated, properties)
+Emitted when properties successfully updated from HVAC (e.g. by a remote control)
+
+**Kind**: event emitted by [<code>Client</code>](#Client)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| updated | [<code>PropertyMap</code>](#PropertyMap) | The properties and their values that were updated |
+| properties | [<code>PropertyMap</code>](#PropertyMap) | All the properties and their values managed by the Client |
+
+<a name="Client+event_error"></a>
+
+### "error" (error)
+Emitted when an error happens
+
+It is important to subscribe to the `error` event, otherwise the process will be terminated
+
+**Kind**: event emitted by [<code>Client</code>](#Client)  
+
+| Param | Type |
+| --- | --- |
+| error | [<code>ClientError</code>](#ClientError) | 
+
+<a name="Client+event_disconnect"></a>
+
+### "disconnect"
+Emitted when disconnected from the HVAC
+
+**Kind**: event emitted by [<code>Client</code>](#Client)  
+<a name="ClientError"></a>
+
+## ClientError ⇐ <code>Error</code>
+**Kind**: global class  
+**Extends**: <code>Error</code>  
+<a name="new_ClientError_new"></a>
+
+### new ClientError(message, origin, props)
+
+| Param | Type |
+| --- | --- |
+| message | <code>string</code> | 
+| origin | <code>Error</code> \| <code>undefined</code> | 
+| props | <code>Object.&lt;string, unknown&gt;</code> | 
+
+<a name="ClientSocketSendError"></a>
+
+## ClientSocketSendError ⇐ [<code>ClientError</code>](#ClientError)
+Connectivity problems while communicating with HVAC
+
+**Kind**: global class  
+**Extends**: [<code>ClientError</code>](#ClientError)  
+<a name="new_ClientSocketSendError_new"></a>
+
+### new ClientSocketSendError(cause)
+
+| Param | Type |
+| --- | --- |
+| cause | <code>Error</code> | 
+
+<a name="ClientMessageParseError"></a>
+
+## ClientMessageParseError ⇐ [<code>ClientError</code>](#ClientError)
+The message received from HVAC cannot be parsed
+
+**Kind**: global class  
+**Extends**: [<code>ClientError</code>](#ClientError)  
+<a name="new_ClientMessageParseError_new"></a>
+
+### new ClientMessageParseError(cause, props)
+
+| Param | Type |
+| --- | --- |
+| cause | <code>Error</code> | 
+| props | <code>Object.&lt;string, unknown&gt;</code> | 
+
+<a name="ClientMessageUnpackError"></a>
+
+## ClientMessageUnpackError ⇐ [<code>ClientError</code>](#ClientError)
+The package from the message received from HVAC cannot be decrypt
+
+**Kind**: global class  
+**Extends**: [<code>ClientError</code>](#ClientError)  
+<a name="new_ClientMessageUnpackError_new"></a>
+
+### new ClientMessageUnpackError(cause, props)
+
+| Param | Type |
+| --- | --- |
+| cause | <code>Error</code> | 
+| props | <code>Object.&lt;string, unknown&gt;</code> | 
+
+<a name="ClientUnknownMessageError"></a>
+
+## ClientUnknownMessageError ⇐ [<code>ClientError</code>](#ClientError)
+A message having an unknown format was received from HVAC
+
+**Kind**: global class  
+**Extends**: [<code>ClientError</code>](#ClientError)  
+<a name="new_ClientUnknownMessageError_new"></a>
+
+### new ClientUnknownMessageError(props)
+
+| Param | Type |
+| --- | --- |
+| props | <code>Object.&lt;string, unknown&gt;</code> | 
+
+<a name="ClientNotConnectedError"></a>
+
+## ClientNotConnectedError ⇐ [<code>ClientError</code>](#ClientError)
+Request operations on not connected to the HVAC client
+
+**Kind**: global class  
+**Extends**: [<code>ClientError</code>](#ClientError)  
+<a name="ClientConnectTimeoutError"></a>
+
+## ClientConnectTimeoutError ⇐ [<code>ClientError</code>](#ClientError)
+**Kind**: global class  
+**Extends**: [<code>ClientError</code>](#ClientError)  
+<a name="ClientCancelConnectError"></a>
+
+## ClientCancelConnectError ⇐ [<code>ClientError</code>](#ClientError)
+Connecting was cancelled by calling disconnect
+
+**Kind**: global class  
+**Extends**: [<code>ClientError</code>](#ClientError)  
 <a name="CLIENT_OPTIONS"></a>
 
-## CLIENT\_OPTIONS
+## CLIENT\_OPTIONS : <code>object</code>
 Client options
 
 **Kind**: global constant  
@@ -314,6 +499,8 @@ Device properties value constants
 | turbo.on | <code>string</code> |  |
 | powerSave.off | <code>string</code> |  |
 | powerSave.on | <code>string</code> |  |
+| safetyHeating.off | <code>string</code> |  |
+| safetyHeating.on | <code>string</code> |  |
 
 <a name="PROPERTY"></a>
 
@@ -343,6 +530,10 @@ Device properties constants
 | turbo | <code>string</code> | Sets fan speed to the maximum. Fan speed cannot be changed while active and only available in Dry and Cool mode |
 | powerSave | <code>string</code> | Power saving mode |
 
+<a name="PropertyMap"></a>
+
+## PropertyMap : <code>Object.&lt;PROPERTY, (PROPERTY\_VALUE\|number)&gt;</code>
+**Kind**: global typedef  
 
 ## License
 

@@ -1,23 +1,81 @@
 'use strict';
 
 const dgram = require('dgram');
-const EncryptionService = require('./encryption-service').EncryptionService;
-const PROPERTY = require('./property').PROPERTY;
-const PROPERTY_VALUE = require('./property-value').PROPERTY_VALUE;
-const CLIENT_OPTIONS = require('./client-options').CLIENT_OPTIONS;
 const EventEmitter = require('events');
-const PropertyTransformer = require('./property-transformer');
 const diff = require('object-diff');
 const clone = require('clone');
 
+const { EncryptionService } = require('./encryption-service');
+const { PROPERTY } = require('./property');
+const { PROPERTY_VALUE } = require('./property-value');
+const { CLIENT_OPTIONS } = require('./client-options');
+const { PropertyTransformer } = require('./property-transformer');
+const {
+    ClientError,
+    ClientMessageParseError,
+    ClientMessageUnpackError,
+    ClientSocketSendError,
+    ClientUnknownMessageError,
+    ClientNotConnectedError,
+    ClientConnectTimeoutError,
+    ClientCancelConnectError,
+} = require('./errors');
+
 /**
  * Control GREE HVAC device by getting and setting its properties
+ *
+ * @augments EventEmitter
  */
 class Client extends EventEmitter {
     /**
-     * Creates a new client, connect to device and start polling by default.
-     * @param {CLIENT_OPTIONS | {}} options
+     * @typedef {Object<PROPERTY, PROPERTY_VALUE | number>} PropertyMap
+     */
+
+    /**
+     * Emitted when successfully connected to the HVAC
      *
+     * @event Client#connect
+     */
+
+    /**
+     * Emitted when properties successfully updated after calling setProperties or setProperty
+     *
+     * @param {PropertyMap} updated The properties and their values that were updated
+     * @param {PropertyMap} properties All the properties and their values managed by the Client
+     * @event Client#success
+     */
+
+    /**
+     * Emitted when properties successfully updated from HVAC (e.g. by a remote control)
+     *
+     * @param {PropertyMap} updated The properties and their values that were updated
+     * @param {PropertyMap} properties All the properties and their values managed by the Client
+     * @event Client#update
+     */
+
+    /**
+     * Emitted when an error happens
+     *
+     * It is important to subscribe to the `error` event, otherwise the process will be terminated
+     *
+     * @param {ClientError} error
+     * @event Client#error
+     */
+
+    /**
+     * Emitted when disconnected from the HVAC
+     *
+     * @event Client#disconnect
+     */
+
+    /**
+     * Creates a new client, connect to device and start polling by default.
+     *
+     * @param {CLIENT_OPTIONS | {}} options
+     * @fires Client#connect
+     * @fires Client#update
+     * @fires Client#error
+     * @fires Client#disconnect
      * @example
      * const Gree = require('gree-hvac-client');
      *
@@ -32,19 +90,21 @@ class Client extends EventEmitter {
 
         /**
          * Device MAC-address
+         *
          * @type {string|null}
          * @private
          */
         this._cid = null;
 
         /**
-         * @type {null}
+         * @type {dgram.Socket|null}
          * @private
          */
         this._socket = null;
 
         /**
          * Socket connection timeout reference
+         *
          * @type {number|null}
          * @private
          */
@@ -52,6 +112,7 @@ class Client extends EventEmitter {
 
         /**
          * Status polling interval reference
+         *
          * @type {number|null}
          * @private
          */
@@ -59,6 +120,7 @@ class Client extends EventEmitter {
 
         /**
          * Status polling timeout reference
+         *
          * @type {number|null}
          * @private
          */
@@ -66,7 +128,8 @@ class Client extends EventEmitter {
 
         /**
          * Device properties, are updated by polling the devices
-         * @type {Object.<string, string|number>}
+         *
+         * @type {PropertyMap}
          * @private
          */
         this._properties = {};
@@ -74,7 +137,7 @@ class Client extends EventEmitter {
          * @type {PropertyTransformer}
          * @private
          */
-        this._transformer = new PropertyTransformer.Transformer();
+        this._transformer = new PropertyTransformer();
 
         /**
          * @type {EncryptionService}
@@ -84,6 +147,7 @@ class Client extends EventEmitter {
 
         /**
          * Client options
+         *
          * @type {CLIENT_OPTIONS}
          * @private
          */
@@ -92,45 +156,115 @@ class Client extends EventEmitter {
         /**
          * @private
          */
-        this._trace = function() {
+        this._trace = function () {
             if (!this._options.debug) {
                 return;
             }
 
-            console.debug('>>> cid:' + this._cid + ': ' + (new Date).toLocaleString());
+            console.debug(
+                '>>> cid:' + this._cid + ': ' + new Date().toLocaleString()
+            );
             console.debug.apply(null, arguments);
         };
 
         this._trace('OPTIONS', this._options);
 
         if (this._options.autoConnect) {
-            this.connect();
+            process.nextTick(() => {
+                this.connect().catch(error => this.emit('error', error));
+            });
         }
     }
 
     /**
      * Connect to a HVAC device and start polling status changes by default
+     *
+     * @returns {Promise}
+     * @fires Client#connect
+     * @fires Client#error
      */
     connect() {
-        this._socket = dgram.createSocket('udp4');
-        this._socket.on('message', message => this._handleResponse(message));
+        return new Promise((resolve, reject) => {
+            this.once('connect', resolve);
+            this.once('disconnect', () => {
+                process.nextTick(() => reject(new ClientCancelConnectError()));
+            });
 
-        this._socket.bind(() => {
-            this._socket.setBroadcast(true);
-            this._socketSend({t: 'scan'});
+            this._socket = dgram.createSocket('udp4');
+            this._socket.on('message', message => {
+                this._handleResponse(message).catch(error =>
+                    this.emit('error', error)
+                );
+            });
 
+            this._socket.bind(() => {
+                this._socket.setBroadcast(true);
+                this._initialize().catch(reject);
+            });
+        });
+    }
+
+    /**
+     * Initialize connection
+     *
+     * @private
+     */
+    async _initialize() {
+        this._dispose();
+
+        try {
+            await this._socketSend({ t: 'scan' });
+            await this._reconnect();
+            this.emit('error', new ClientConnectTimeoutError());
+        } catch (err) {
+            this._reconnect();
+            throw err;
+        }
+    }
+
+    /**
+     * Maintain auto-reconnect
+     *
+     * @private
+     */
+    _reconnect() {
+        return new Promise(resolve => {
             this._socketTimeoutRef = setTimeout(() => {
-                this._trace('SOCKET', 'Unable to connect. Retrying...');
-                this.disconnect();
-                this.connect();
+                this._trace('SOCKET', 'Reconnecting...');
+                this._initialize().catch(error => this.emit('error', error));
+                resolve();
             }, this._options.connectTimeout);
         });
     }
 
     /**
      * Disconnect from a HVAC device and stop status polling
+     *
+     * @returns {Promise}
+     * @fires Client#disconnect
      */
     disconnect() {
+        this._dispose();
+
+        return new Promise((resolve, reject) => {
+            if (this._socket) {
+                this._socket.close(() => {
+                    this.emit('disconnect');
+                    resolve();
+                });
+                this._socket = null;
+            } else {
+                reject(new ClientNotConnectedError());
+            }
+        });
+    }
+
+    /**
+     * Cancel interval and timeout resources
+     *
+     * @private
+     */
+    _dispose() {
         if (this._statusIntervalRef) {
             clearInterval(this._statusIntervalRef);
         }
@@ -140,13 +274,15 @@ class Client extends EventEmitter {
         if (this._statusTimeoutRef) {
             clearTimeout(this._statusTimeoutRef);
         }
-        this._socket.close();
-        this.emit('disconnect');
     }
 
     /**
      * Set a list of device properties at once by one request
-     * @param properties {Object.<PROPERTY, PROPERTY_VALUE>}
+     *
+     * @param {PropertyMap} properties
+     * @returns {Promise}
+     * @fires Client#success
+     * @fires Client#error
      * @example
      * // use library constants
      *
@@ -156,7 +292,6 @@ class Client extends EventEmitter {
      * properties[Gree.PROPERTY.fanSpeed] = Gree.VALUE.fanSpeed.high;
      * properties[Gree.PROPERTY.temperature] = 25;
      * client.setProperties(properties);
-     *
      * @example
      * // use plain objects
      *
@@ -169,37 +304,41 @@ class Client extends EventEmitter {
      */
     setProperties(properties) {
         const vendorProperties = this._transformer.toVendor(properties);
-        this._sendRequest({
+        return this._sendRequest({
             opt: Object.keys(vendorProperties),
             p: Object.values(vendorProperties),
-            t: 'cmd'
+            t: 'cmd',
         });
     }
 
     /**
      * Set device property
-     * @param property {PROPERTY}
-     * @param value {PROPERTY_VALUE}
+     *
+     * @param {PROPERTY} property
+     * @param {PROPERTY_VALUE} value
+     * @returns {Promise}
+     * @fires Client#success
+     * @fires Client#error
      * @example
      * // use library constants
      *
      * client.setProperty(Gree.PROPERTY.swingHor, Gree.VALUE.swingHor.fixedLeft);
      * client.setProperty(Gree.PROPERTY.temperature, 25);
-     *
      * @example
      * // use plain values
      *
      * client.setProperty('swingHor', 'fixedLeft');
      * client.setProperty('temperature', 25);
      */
-    setProperty(property, value) {
+    async setProperty(property, value) {
         let properties = {};
         properties[property] = value;
-        this.setProperties(properties);
+        return this.setProperties(properties);
     }
 
     /**
      * Returns devices MAC-address
+     *
      * @returns {string|null}
      */
     getDeviceId() {
@@ -217,10 +356,11 @@ class Client extends EventEmitter {
 
     /**
      * Send binding request to device
+     *
      * @private
      */
-    _sendBindRequest() {
-        this._socketSend({
+    async _sendBindRequest() {
+        await this._socketSend({
             cid: 'app',
             i: 1,
             t: 'pack',
@@ -228,50 +368,73 @@ class Client extends EventEmitter {
             pack: this._encryptionService.encrypt({
                 mac: this._cid,
                 t: 'bind',
-                uid: 0
-            })
+                uid: 0,
+            }),
         });
     }
 
     /**
      * Send a request to device thorough UPD socket
+     *
      * @param request
      * @private
      */
     _socketSend(request) {
-        this._trace('SOCKET.SEND', request);
-        const toSend = Buffer.from(JSON.stringify(request));
-        this._socket.send(toSend, 0, toSend.length, this._options.port, this._options.host);
+        return new Promise((resolve, reject) => {
+            this._trace('SOCKET.SEND', request);
+            const toSend = Buffer.from(JSON.stringify(request));
+
+            if (this._socket) {
+                this._socket.send(
+                    toSend,
+                    0,
+                    toSend.length,
+                    this._options.port,
+                    this._options.host,
+                    error => {
+                        if (!error) {
+                            resolve();
+                        } else {
+                            reject(new ClientSocketSendError(error));
+                        }
+                    }
+                );
+            } else {
+                reject(new ClientNotConnectedError());
+            }
+        });
     }
 
     /**
      * Send request to device
+     *
      * @param {object} message
      * @param {string[]} message.opt
      * @param {number[]} message.p
      * @param {string} message.t
      * @private
      */
-    _sendRequest(message) {
+    async _sendRequest(message) {
         this._trace('OUT.MSG', message, this._encryptionService.getKey());
-        this._socketSend({
+        await this._socketSend({
             cid: 'app',
             i: 0,
             t: 'pack',
             uid: 0,
-            pack: this._encryptionService.encrypt(message)
+            pack: this._encryptionService.encrypt(message),
         });
-    };
+    }
 
     /**
      * Send properties status request to device
+     *
      * @private
      */
-    _requestStatus() {
-        this._sendRequest({
+    async _requestStatus() {
+        await this._sendRequest({
             cols: this._transformer.arrayToVendor(Object.keys(PROPERTY)),
             mac: this._cid,
-            t: 'status'
+            t: 'status',
         });
 
         this._statusTimeoutRef = setTimeout(() => {
@@ -282,30 +445,22 @@ class Client extends EventEmitter {
 
     /**
      * Handle UDP response from device
+     *
      * @param {Buffer} buffer Serialized JSON string with message
+     * @fires Client#error
      * @private
      */
-    _handleResponse(buffer) {
-        const jsonBuffer =  buffer + '';
-
-        let message;
-        try {
-            message = JSON.parse(jsonBuffer);
-        } catch (e) {
-            this._trace('IN.MSG.BUFFER', jsonBuffer);
-            console.error('IN.MSG: Can not parse device JSON response:', {exception: e, jsonBuffer});
-            return;
-        }
+    async _handleResponse(buffer) {
+        const message = this._parse(buffer);
 
         this._trace('IN.MSG', message);
 
         // Extract encrypted package from message using device key (if available)
-        const pack = this._encryptionService.decrypt(message);
-        this._trace('IN.MSG.UNPACK', pack);
+        const pack = this._unpack(message);
 
         // If package type is response to handshake
         if (pack.t === 'dev') {
-            return this._handleHandshakeResponse(pack);
+            return await this._handleHandshakeResponse(pack);
         }
 
         if (this._cid) {
@@ -325,33 +480,74 @@ class Client extends EventEmitter {
             }
         }
 
-        this._trace('IN.MSG', 'Unknown message', pack.t, message, pack)
+        throw new ClientUnknownMessageError({ message, pack });
+    }
+
+    /**
+     * @param {Buffer} buffer Serialized JSON string with message
+     * @returns {object}
+     * @private
+     */
+    _parse(buffer) {
+        const jsonBuffer = buffer + '';
+
+        try {
+            return JSON.parse(jsonBuffer);
+        } catch (error) {
+            throw new ClientMessageParseError(error, { jsonBuffer });
+        }
+    }
+
+    /**
+     * Extract encrypted package from message using device key (if available)
+     *
+     * @param {string} message
+     * @returns {object}
+     * @private
+     */
+    _unpack(message) {
+        try {
+            const pack = this._encryptionService.decrypt(message);
+            this._trace('IN.MSG.UNPACK', pack);
+            return pack;
+        } catch (error) {
+            throw new ClientMessageUnpackError(error, { message });
+        }
     }
 
     /**
      * Handle device handshake response
+     *
      * @param message
      * @private
      */
-    _handleHandshakeResponse(message) {
+    async _handleHandshakeResponse(message) {
         this._cid = message.cid || message.mac;
-        this._sendBindRequest();
+        await this._sendBindRequest();
     }
 
     /**
      * Handle device binding confirmation response
+     *
      * @param pack
+     * @fires Client#connect
      * @private
      */
-    _handleBindingConfirmationResponse(pack) {
+    async _handleBindingConfirmationResponse(pack) {
         this._trace('SOCKET', 'Connected to device', this._options.host);
         clearTimeout(this._socketTimeoutRef);
 
         this._encryptionService.setKey(pack.key);
 
-        this._requestStatus();
+        await this._requestStatus();
         if (this._options.poll) {
-            this._statusIntervalRef = setInterval(() => this._requestStatus(), this._options.pollingInterval);
+            this._statusIntervalRef = setInterval(
+                () =>
+                    this._requestStatus().catch(error =>
+                        this.emit('error', error)
+                    ),
+                this._options.pollingInterval
+            );
         }
 
         this.emit('connect', this);
@@ -359,7 +555,9 @@ class Client extends EventEmitter {
 
     /**
      * Handle device properties status response
+     *
      * @param pack
+     * @fires Client#update
      * @private
      */
     _handleStatusResponse(pack) {
@@ -386,7 +584,9 @@ class Client extends EventEmitter {
 
     /**
      * Handle device properties update confirmation response
+     *
      * @param pack
+     * @fires Client#success
      * @private
      */
     _handleUpdateConfirmResponse(pack) {

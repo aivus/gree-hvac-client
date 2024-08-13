@@ -38,8 +38,9 @@ const PROPERTY = {
     quiet: 'quiet',
     turbo: 'turbo',
     powerSave: 'powerSave',
+    safetyHeating: 'safetyHeating',
 };
 
 module.exports = {
-    PROPERTY
+    PROPERTY,
 };

@@ -23,7 +23,6 @@ const PROPERTY_VENDOR_CODES = {
 const PROPERTY_VALUE_TRANSFORMERS = {
     currentTemperature: {
         fromVendor: function (value) {
-
             // When TemSen=0 or value is too high it likely means the device does not support the feature
             if (value === 0 || value >= 100) {
                 return 0;
@@ -45,16 +44,17 @@ const PROPERTY_VALUE_TRANSFORMERS = {
         toVendor: function (value) {
             throw new Error(`Cannot set read-only property currentTemperature`);
         },
-    }
-}
+    },
+};
 
 const NOOP_PROPERTY_VALUE_TRANSFORMER = {
     fromVendor: value => value,
-    toVendor: value => value
-}
+    toVendor: value => value,
+};
 
 /**
  * Transforms device properties from vendor names to human friendly names and back
+ *
  * @private
  */
 class PropertyTransformer {
@@ -67,8 +67,9 @@ class PropertyTransformer {
 
     /**
      * Transforms device properties from vendor names to human friendly names
+     *
      * @param properties Object.<string,string|number>
-     * @returns {Object.<string,string|number>}
+     * @returns {Object<string,string|number>}
      * @example
      * const properties = transformer.fromVendor({
      *     Mod: 1,
@@ -86,7 +87,10 @@ class PropertyTransformer {
         let ret = {};
         for (let [property, value] of Object.entries(properties)) {
             const reversedProperty = this._reversedProperties[property];
-            ret[reversedProperty] = this._valueFromVendor(reversedProperty, value);
+            ret[reversedProperty] = this._valueFromVendor(
+                reversedProperty,
+                value
+            );
         }
         return ret;
     }

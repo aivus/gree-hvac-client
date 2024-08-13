@@ -1,5 +1,5 @@
 const assert = require('assert');
-const PropertyTransformer = require('../lib/property-transformer').Transformer;
+const { PropertyTransformer } = require('../src/property-transformer');
 
 describe('PropertyTransformer', function () {
     describe('#fromVendor()', function () {
@@ -14,40 +14,40 @@ describe('PropertyTransformer', function () {
             assert.deepEqual(result, {
                 mode: 'cool',
                 temperature: 25,
-                currentTemperature: 27
+                currentTemperature: 27,
             });
         });
 
         it('should not subtract 40 from vendor value in case of zero', function () {
             const SUT = new PropertyTransformer();
             const result = SUT.fromVendor({
-                TemSen: 0
+                TemSen: 0,
             });
 
             assert.deepEqual(result, {
-                currentTemperature: 0
+                currentTemperature: 0,
             });
         });
 
         it('should not subtract 40 from vendor value in case value after subtraction less than 0', function () {
             const SUT = new PropertyTransformer();
             const result = SUT.fromVendor({
-                TemSen: 30
+                TemSen: 30,
             });
 
             assert.deepEqual(result, {
-                currentTemperature: 30
+                currentTemperature: 30,
             });
         });
 
         it('should ignore vendor value if it greater than 100', function () {
             const SUT = new PropertyTransformer();
             const result = SUT.fromVendor({
-                TemSen: 100
+                TemSen: 100,
             });
 
             assert.deepEqual(result, {
-                currentTemperature: 0
+                currentTemperature: 0,
             });
         });
     });
@@ -56,24 +56,27 @@ describe('PropertyTransformer', function () {
             const SUT = new PropertyTransformer();
             const result = SUT.toVendor({
                 mode: 'cool',
-                temperature: 25
+                temperature: 25,
             });
 
             assert.deepEqual(result, {
                 Mod: 1,
-                SetTem: 25
+                SetTem: 25,
             });
         });
         it('should not allow to change read-only property', function () {
             const SUT = new PropertyTransformer();
-            assert.throws(() => {
-                SUT.toVendor({
-                    currentTemperature: 30
-                })
-            }, {
-                name: 'Error',
-                message: 'Cannot set read-only property currentTemperature'
-            });
+            assert.throws(
+                () => {
+                    SUT.toVendor({
+                        currentTemperature: 30,
+                    });
+                },
+                {
+                    name: 'Error',
+                    message: 'Cannot set read-only property currentTemperature',
+                }
+            );
         });
     });
 });

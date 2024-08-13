@@ -9,6 +9,11 @@ client.on('connect', () => {
     client.setProperty(Gree.PROPERTY.lights, Gree.VALUE.lights.off);
 });
 
-client.on('success', (updatedProperties) => {
+client.on('success', updatedProperties => {
     console.log('properties updated:', updatedProperties);
+    client.disconnect();
+});
+
+client.on('error', error => {
+    console.error(error);
 });

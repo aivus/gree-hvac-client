@@ -41,7 +41,7 @@ const PROPERTY_VALUE_TRANSFORMERS = {
 
             return normalizedValue;
         },
-        toVendor: function (value) {
+        toVendor: function () {
             throw new Error(`Cannot set read-only property currentTemperature`);
         },
     },
@@ -84,8 +84,8 @@ class PropertyTransformer {
      * // }
      */
     fromVendor(properties) {
-        let ret = {};
-        for (let [property, value] of Object.entries(properties)) {
+        const ret = {};
+        for (const [property, value] of Object.entries(properties)) {
             const reversedProperty = this._reversedProperties[property];
             ret[reversedProperty] = this._valueFromVendor(
                 reversedProperty,
@@ -101,9 +101,12 @@ class PropertyTransformer {
      * @returns {Object.<string,string|number>}
      */
     toVendor(properties) {
-        let ret = {};
-        for (let [property, value] of Object.entries(properties)) {
-            ret[this._properties[property]] = this._valueToVendor(property, value);
+        const ret = {};
+        for (const [property, value] of Object.entries(properties)) {
+            ret[this._properties[property]] = this._valueToVendor(
+                property,
+                value
+            );
         }
         return ret;
     }
@@ -127,18 +130,18 @@ class PropertyTransformer {
     }
 
     _reverseProperties() {
-        let reversed = {};
-        for (let [k, v] of Object.entries(this._properties)) {
+        const reversed = {};
+        for (const [k, v] of Object.entries(this._properties)) {
             reversed[v] = k;
         }
         return reversed;
     }
 
     _reverseValues() {
-        let reversed = {};
-        for (let [k, v] of Object.entries(this._values)) {
+        const reversed = {};
+        for (const [k, v] of Object.entries(this._values)) {
             reversed[k] = {};
-            for (let [valueKey, valueValue] of Object.entries(v)) {
+            for (const [valueKey, valueValue] of Object.entries(v)) {
                 reversed[k][valueValue] = valueKey;
             }
         }

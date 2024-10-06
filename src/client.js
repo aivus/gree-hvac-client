@@ -5,7 +5,7 @@ const EventEmitter = require('events');
 const diff = require('object-diff');
 const clone = require('clone');
 
-const { EncryptionService, EncryptionServiceGCM } = require('./encryption-service');
+const { EncryptionService } = require('./encryption-service');
 const { PROPERTY } = require('./property');
 const { PROPERTY_VALUE } = require('./property-value');
 const { CLIENT_OPTIONS } = require('./client-options');
@@ -146,29 +146,12 @@ class Client extends EventEmitter {
          * @private
          */
         this._options = { ...CLIENT_OPTIONS, ...options };
-        
+
         /**
-         * Encryption service based on encryption version.
          * @type {EncryptionService}
          * @private
          */
-        switch (this._options.encryptionVersion) {
-            case 1:
-                this._encryptionService = new EncryptionService();
-                break;
-            case 2:
-                this._encryptionService = new EncryptionServiceGCM();
-                break;
-            default:
-                this._encryptionService = new EncryptionService();
-        }
-        
-        /**
-         * Needed for scan request handling
-         * @type {EncryptionService}
-         * @private
-         */
-        this._encryptionServiceV1 = new EncryptionService();
+        this._encryptionService = new EncryptionService();
 
         /**
          * @private
@@ -475,14 +458,7 @@ class Client extends EventEmitter {
         this._trace('IN.MSG', message);
 
         // Extract encrypted package from message using device key (if available)
-        let pack;
-        if (!this._cid) {
-            //scan responses are always on v1
-            pack = this._encryptionServiceV1.decrypt(message);
-        } else {
-            //use set encryption method
-            pack = this._encryptionService.decrypt(message);
-        }
+        const pack = this._unpack(message);
 
         // If package type is response to handshake
         if (pack.t === 'dev') {

@@ -3,6 +3,13 @@
 const crypto = require('crypto');
 
 /**
+ * @typedef EncryptedMessage
+ * @property {string} payload
+ * @property {string|undefined} tag
+ * @private
+ */
+
+/**
  * @private
  */
 class EncryptionService {
@@ -63,20 +70,10 @@ class EncryptionService {
      * Encrypt UDP message
      *
      * @param {object} output Request object
-     * @returns {string}
+     * @returns {EncryptedMessage}
      */
     encrypt(output) {
-        const result = this._activeCipher.encrypt(output);
-        return result;
-    }
-
-    /**
-     * Required for GCM
-     *
-     * @returns {string|undefined}
-     */
-    getTag() {
-        return this._activeCipher.getTag();
+        return this._activeCipher.encrypt(output);
     }
 }
 
@@ -128,21 +125,15 @@ class EcbCipher {
      * Encrypt UDP message
      *
      * @param {object} output Request object
-     * @returns {string}
+     * @returns {EncryptedMessage}
      */
     encrypt(output) {
         const cipher = crypto.createCipheriv('aes-128-ecb', this._key, '');
         const str = cipher.update(JSON.stringify(output), 'utf8', 'base64');
-        return str + cipher.final('base64');
-    }
-
-    /**
-     * Not applicable for ECB
-     *
-     * @returns {string|undefined}
-     */
-    getTag() {
-        return undefined;
+        const encrypted = str + cipher.final('base64');
+        return {
+            payload: encrypted,
+        };
     }
 }
 
@@ -209,10 +200,10 @@ class GcmCipher {
     }
 
     /**
-     * Encrypt UDP message. Sets _encTag to be received before sending with getTag() and added to message.
+     * Encrypt UDP message
      *
      * @param {object} output Request object
-     * @returns {string}
+     * @returns {EncryptedMessage}
      */
     encrypt(output) {
         const cipher = crypto.createCipheriv(
@@ -223,19 +214,12 @@ class GcmCipher {
         cipher.setAAD(GCM_AEAD);
         const str = cipher.update(JSON.stringify(output), 'utf8', 'base64');
         const outstr = str + cipher.final('base64');
-        this._encTag = cipher.getAuthTag().toString('base64').toString('utf-8');
-        return outstr;
-    }
+        const tag = cipher.getAuthTag().toString('base64').toString('utf-8');
 
-    /**
-     * Receive and clear the last generated tag
-     *
-     * @returns {string|undefined}
-     */
-    getTag() {
-        const tmpTag = this._encTag;
-        this._encTag = undefined;
-        return tmpTag;
+        return {
+            payload: outstr,
+            tag,
+        };
     }
 }
 

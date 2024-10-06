@@ -140,18 +140,18 @@ class Client extends EventEmitter {
         this._transformer = new PropertyTransformer();
 
         /**
+         * @type {EncryptionService}
+         * @private
+         */
+        this._encryptionService;
+
+        /**
          * Client options
          *
          * @type {CLIENT_OPTIONS}
          * @private
          */
         this._options = { ...CLIENT_OPTIONS, ...options };
-
-        /**
-         * @type {EncryptionService}
-         * @private
-         */
-        this._encryptionService = new EncryptionService();
 
         /**
          * @private
@@ -211,6 +211,9 @@ class Client extends EventEmitter {
      */
     async _initialize() {
         this._dispose();
+
+        // The encryption service is stateful so requires re-initialization
+        this._encryptionService = new EncryptionService();
 
         try {
             await this._socketSend({ t: 'scan' });
@@ -360,17 +363,19 @@ class Client extends EventEmitter {
      * @private
      */
     async _sendBindRequest() {
+        const encryptedMessage = this._encryptionService.encrypt({
+            mac: this._cid,
+            t: 'bind',
+            uid: 0,
+        });
+
         await this._socketSend({
             cid: 'app',
             i: 1,
             t: 'pack',
             uid: 0,
-            pack: this._encryptionService.encrypt({
-                mac: this._cid,
-                t: 'bind',
-                uid: 0,
-            }),
-            tag: this._encryptionService.getTag(),
+            pack: encryptedMessage.payload,
+            tag: encryptedMessage.tag,
         });
     }
 
@@ -417,13 +422,15 @@ class Client extends EventEmitter {
      */
     async _sendRequest(message) {
         this._trace('OUT.MSG', message, this._encryptionService.getKey());
+
+        const encryptedMessage = this._encryptionService.encrypt(message);
         await this._socketSend({
             cid: 'app',
             i: 0,
             t: 'pack',
             uid: 0,
-            pack: this._encryptionService.encrypt(message),
-            tag: this._encryptionService.getTag(),
+            pack: encryptedMessage.payload,
+            tag: encryptedMessage.tag,
         });
     }
 

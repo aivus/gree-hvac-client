@@ -143,7 +143,7 @@ class Client extends EventEmitter {
          * @type {EncryptionService}
          * @private
          */
-        this._encryptionService;
+        this._encryptionService = new EncryptionService();
 
         /**
          * Client options

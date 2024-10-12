@@ -212,6 +212,9 @@ class Client extends EventEmitter {
     async _initialize() {
         this._dispose();
 
+        // The encryption service is stateful so requires re-initialization
+        this._encryptionService = new EncryptionService();
+
         try {
             await this._socketSend({ t: 'scan' });
             await this._reconnect();
@@ -360,16 +363,19 @@ class Client extends EventEmitter {
      * @private
      */
     async _sendBindRequest() {
+        const encryptedMessage = this._encryptionService.encrypt({
+            mac: this._cid,
+            t: 'bind',
+            uid: 0,
+        });
+
         await this._socketSend({
             cid: 'app',
             i: 1,
             t: 'pack',
             uid: 0,
-            pack: this._encryptionService.encrypt({
-                mac: this._cid,
-                t: 'bind',
-                uid: 0,
-            }),
+            pack: encryptedMessage.payload,
+            tag: encryptedMessage.tag,
         });
     }
 
@@ -416,12 +422,15 @@ class Client extends EventEmitter {
      */
     async _sendRequest(message) {
         this._trace('OUT.MSG', message, this._encryptionService.getKey());
+
+        const encryptedMessage = this._encryptionService.encrypt(message);
         await this._socketSend({
             cid: 'app',
             i: 0,
             t: 'pack',
             uid: 0,
-            pack: this._encryptionService.encrypt(message),
+            pack: encryptedMessage.payload,
+            tag: encryptedMessage.tag,
         });
     }
 
